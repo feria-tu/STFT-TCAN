@@ -146,39 +146,7 @@ def load_freq(dataset):
 def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
     l = nn.MSELoss(reduction='mean' if training else 'none')
     feats = dataO.shape[1]
-    if 'DAGMM' in model.name:
-        l = nn.MSELoss(reduction = 'none')
-        model.to(torch.device(args.Device))
-        compute = ComputeLoss(model, 0.1, 0.005, 'cpu', model.n_gmm)
-        n = epoch + 1
-        w_size = model.n_window
-        l1s = []
-        l2s = []
-        if training:
-            for d in data:
-                d = d.to(torch.device(args.Device))
-                _, x_hat, z, gamma = model(d)
-                l1, l2 = l(x_hat, d), l(gamma, d)
-                l1s.append(torch.mean(l1).item())
-                l2s.append(torch.mean(l2).item())
-                loss = torch.mean(l1) + torch.mean(l2)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-            scheduler.step()
-            tqdm.write(f'Epoch {epoch},\tL1 = {np.mean(l1s)},\tL2 = {np.mean(l2s)}')
-            return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
-        else:
-            model.to(torch.device('cpu'))
-            ae1s = []
-            for d in data: 
-                _, x_hat, _, _ = model(d)
-                ae1s.append(x_hat)
-            ae1s = torch.stack(ae1s)
-            y_pred = ae1s[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-            loss = l(ae1s, data)[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
-            return loss.detach().numpy(), y_pred.detach().numpy()
-    elif 'OmniAnomaly' in model.name:
+    if 'OmniAnomaly' in model.name:
         if training:
             mses, klds = [], []
             model.to(torch.device(args.Device))
@@ -188,7 +156,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
                 MSE = l(y_pred, d)
                 KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=0)
                 loss = MSE + model.beta * KLD
-                loss = loss.sum()
+                # loss = loss.sum()
                 mses.append(torch.mean(MSE).item())
                 klds.append(model.beta * torch.mean(KLD).item())
                 optimizer.zero_grad()
@@ -240,7 +208,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
             loss = 0.1 * l(ae1s, data) + 0.9 * l(ae2ae1s, data)
             loss = loss[:, data.shape[1]-feats:data.shape[1]].view(-1, feats)
             return loss.detach().numpy(), y_pred.detach().numpy()
-    elif model.name in ['GDN', 'MTAD_GAT', 'MSCRED']:
+    elif model.name in ['MTAD_GAT']:
         l = nn.MSELoss(reduction='none')
         model.to(torch.device(args.Device))
         n = epoch + 1
@@ -524,4 +492,11 @@ if __name__ == '__main__':
     result, _ = pot_eval(lossTfinal, lossFinal, labelsFinal)
     print(df)
     pprint(result)
+
+
+
+
+        
+
+ 
 
