@@ -69,7 +69,7 @@ def load_model(modelname,dims):
     optimizer = torch.optim.AdamW(model.parameters() , lr=model.lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 5, 0.9)
     fname = f'checkpoints/{args.model}_{args.dataset}/model.ckpt'
-    if os.path.exists(fname):
+    if os.path.exists(fname) and (not args.test):
         print(f"Loading pre-trained model: {model.name}")
         checkpoint = torch.load(fname)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -99,28 +99,29 @@ def load_dataset(dataset):
             file = 'P-1_' + file
         if dataset == 'MSL':
             file = 'C-1_' + file
-        if dataset == 'NAB':
-            file = 'ec2_request_latency_system_failure_' + file
-        if dataset == 'UCR': 
-            file = '136_' + file
         loader.append(np.load(os.path.join(folder,f'{file}.npy')))
         # loader包括loader[0]：train，loader[1]：test，loader[2]：label
     
-    loader_train = np.concatenate((loader[0],train_freq),axis=0)
-    loader_test = np.concatenate((loader[1],test_freq),axis=0)
+    # 以NAB数据集为例：loader shape=(3, 4032, 1)
+    # DataLoader 是一个迭代器，最基本的使用方法就是传入一个 Dataset 对象，它会根据参数 batch_size 的值生成一个 batch 的数据
 
+    # 是否需要转换成频域数据
+    if args.freq:     
+        loader_train = np.concatenate((loader[0],train_freq),axis=0)
+        loader_test = np.concatenate((loader[1],test_freq),axis=0)
+        # 时频结合
+        train_loader = DataLoader(loader_train, batch_size=loader[0].shape[0])
+        test_loader = DataLoader(loader_test, batch_size=loader[1].shape[0])
+    else:
+        # 仅时域数据
+        train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
+        test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
+
+    # 检测在少量数据集上的效果，这里取20%实验集
     if args.twenty: 
         loader_train = cut_val(0.2, loader_train)
         loader[0] = cut_val(0.2, loader[0])
 
-    # 以NAB数据集为例：loader shape=(3, 4032, 1)
-    # DataLoader 是一个迭代器，最基本的使用方法就是传入一个 Dataset 对象，它会根据参数 batch_size 的值生成一个 batch 的数据
-    # 仅时域数据
-    train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
-    test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
-    # 时频结合
-    # train_loader = DataLoader(loader_train, batch_size=loader[0].shape[0])
-    # test_loader = DataLoader(loader_test, batch_size=loader[1].shape[0])
     labels = loader[2]
     return train_loader, test_loader, labels
 
@@ -133,7 +134,6 @@ def load_freq(dataset):
         if dataset == 'SMD': file = 'machine-1-1_' + file
         if dataset == 'SMAP': file = 'P-1_' + file
         if dataset == 'MSL': file = 'C-1_' + file
-        # if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
         if dataset == 'MBA': file = file
         path = os.path.join(folder, f'{file}_freq.npy')
         freq = np.load(path,allow_pickle=True)
@@ -443,9 +443,9 @@ if __name__ == '__main__':
     # 先进行数据预处理
     # 加载数据集
     print('Usage: python main.py --dataset <dataset> --model <model> [--twenty]')
-    print('dataset: NAB/SMAP/MSL/SMD/MBA/WADI/SWaT/UCR')
+    print('dataset: SMAP/MSL/SMD/MBA/WADI/SWaT')
     if args.dataset not in ['SMAP','MSL','SMD','MBA','WADI','SWaT']:
-        raise Exception(f'Unknow Dataset ',args.dataset)
+        raise Exception(f'Unknown Dataset ',args.dataset)
     # 将时域数据转为频域数据
     if not os.path.exists(freq_folder):
         convert_to_freq()
@@ -462,21 +462,19 @@ if __name__ == '__main__':
 
     # # 将数据输入TCAN 模型
     # # 初始化模型和优化器
-    input_dim = 10  # 输入数据的特征维度
-    output_dim = 1  # 输出大小
-    kernel_size = 3  # 卷积核大小
-    dropout = 0.2  # dropout率
+    # input_dim = 10  # 输入数据的特征维度
+    # output_dim = 1  # 输出大小
+    # kernel_size = 3  # 卷积核大小
+    # dropout = 0.2  # dropout率
 
     # Hyperparameters lr，根据不同的数据集定不同的lr
     lr_d = {
         'SMD': 0.0001,
         'SMAP': 0.001,
-        'NAB': 0.009,
         'MBA': 0.001,
         'SWaT': 0.009,
         'WADI': 0.0001,
         'MSL': 0.002,
-        'UCR': 0.006,
     }
 
     print(f'======================Training model on {args.dataset}======================')
@@ -519,18 +517,11 @@ if __name__ == '__main__':
         lt, l, ls = lossT[:, i], loss[:, i], labels[:, i]
         # POT: 使用峰值过阈值（POT）方法自动选择异常阈值
         result, pred = pot_eval(lt, l, ls)
-        df = df._append(result, ignore_index=True)
+        df = df.append(result, ignore_index=True)
     
     lossTfinal, lossFinal = np.mean(lossT, axis=1), np.mean(loss, axis=1)
     labelsFinal = (np.sum(labels, axis=1) >= 1) + 0
     result, _ = pot_eval(lossTfinal, lossFinal, labelsFinal)
     print(df)
     pprint(result)
-
-
-
-
-        
-
- 
 
