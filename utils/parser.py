@@ -21,6 +21,13 @@ parser.add_argument('--model',
 					default='STFT',
                     help="model name")
 
+parser.add_argument('--freq', 
+					metavar='-f', 
+					type=str, 
+					required=False,
+					default='False',
+                    help="convert to frequence")
+
 parser.add_argument('--twenty',
                     action='store_true',
                     help="train using less data")
