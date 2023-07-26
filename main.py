@@ -34,6 +34,7 @@ freq_folder = 'frequence'
 
 # 取20%数据集的数据，验证模型在少量数据集上的表现情况
 def cut_val(percentage, arr):
+    print('Slicing dataset to 20%')
     mid = round(arr.shape[0] / 2)
     window = round(arr.shape[0] * percentage * 0.5)
     return arr[mid - window: mid + window, :]
@@ -410,7 +411,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training=True):
 if __name__ == '__main__':
     # 先进行数据预处理
     # 加载数据集
-    print('Usage: python main.py --dataset <dataset> --model <model> [--twenty]')
+    print('Usage: python main.py --dataset <dataset> --model <model> [--freq <bool>] [--twenty]')
     print('dataset: SMAP/MSL/SMD/MBA/WADI/SWaT')
     if args.dataset not in ['SMAP','MSL','SMD','MBA','WADI','SWaT']:
         raise Exception(f'Unknown Dataset ',args.dataset)
